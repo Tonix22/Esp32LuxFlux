@@ -1,0 +1,14 @@
+services:
+  esp-idf:
+    build:
+      context: .
+      args:
+        IDF_VERSION: ${IDF_VERSION:-v5.5.4}
+    image: luxflux-idf:${IDF_VERSION:-v5.5.4}
+    working_dir: /project
+    volumes:
+      - .:/project
+    environment:
+      IDF_TARGET: esp32c3
+    stdin_open: true
+    tty: true

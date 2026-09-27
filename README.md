@@ -1,0 +1,204 @@
+# LuxFlux ESP32-C3 scaffold
+
+Step-by-step commands are in [Build, compile and test](docs/BUILD_COMPILE_TEST.md).
+For the Python test server and its modes, see
+[Python light-sequence server](docs/PYTHON_SEQUENCE_SERVER.md).
+To follow the server data through the C++ client and LED output, see
+[How a light sequence reaches the LEDs](docs/SEQUENCE_CODE_WALKTHROUGH.md).
+
+ESP-IDF 5.5.4 project for an ESP32-C3 spinning-top light controller. The
+firmware contains a selectable LED RMT backend and a modular RGB sequence
+synchronization path. Motion, RPM, audio, battery management and final light
+behavior are deferred.
+
+The [NVM component](components/nvm/README.md) saves a complete, validated light
+sequence to NVS after `EOF` and restores it on boot. LED configuration storage
+remains a placeholder.
+
+## Docker development
+
+The official `espressif/idf:v5.5.4` image is pinned via `IDF_VERSION` in
+`Dockerfile` and Compose. Override deliberately with `IDF_VERSION=vX.Y.Z`.
+Docker Compose mounts this repository at `/project`; all build artifacts stay
+under the repository's ignored `build/` or `build-<variant>/` directories.
+No privileged mode or USB mapping is used to compile.
+
+```bash
+docker compose build
+docker compose run --rm esp-idf idf.py --version
+docker compose run --rm esp-idf idf.py set-target esp32c3
+docker compose run --rm esp-idf idf.py build
+docker compose run --rm esp-idf bash
+python3 tools/build_led_variants.py
+```
+
+Helpers: `./scripts/docker-build.sh`, `./scripts/docker-shell.sh`, and
+`./scripts/docker-idf-build.sh`. The last helper sets the target on first use
+and then builds without resetting a configured `sdkconfig`.
+The Dev Container reuses the Compose service and opens `/project`.
+
+Native build with an installed ESP-IDF 5.5.4 environment:
+
+```bash
+. "$IDF_PATH/export.sh"
+idf.py set-target esp32c3
+idf.py build
+python3 tools/build_led_variants.py --native
+```
+
+## Quick command and menuconfig reference
+
+Run these commands from the repository root. On a fresh checkout, build the
+Docker image and set the target before opening menuconfig or building; this
+creates the local `sdkconfig`. Do not run `set-target` again after entering
+Wi-Fi credentials, because it resets that configuration. For the hardware
+commands, set `SERIAL_PORT` to the confirmed port of your ESP32-C3.
+
+| Task | Command |
+| --- | --- |
+| Build Docker image (first time) | `docker compose build` |
+| Set ESP32-C3 target (first time) | `docker compose run --rm esp-idf idf.py set-target esp32c3` |
+| Build firmware | `docker compose run --rm esp-idf idf.py build` |
+| Flash firmware | `docker run --rm --device="$SERIAL_PORT" -v "$PWD:/project" -w /project luxflux-idf:v5.5.4 idf.py -p "$SERIAL_PORT" flash` |
+| View serial monitor | `docker run --rm -it --device="$SERIAL_PORT" -v "$PWD:/project" -w /project luxflux-idf:v5.5.4 idf.py -p "$SERIAL_PORT" monitor` |
+| Open menuconfig | `docker compose run --rm esp-idf idf.py menuconfig` |
+
+To set `SERIAL_PORT` on Linux, plug in the ESP32-C3 and list the serial devices:
+
+```bash
+ls -l /dev/serial/by-id/
+```
+
+Find the entry for your board and note the `/dev/ttyACM0` or `/dev/ttyUSB0`
+device it points to. Unplugging and reconnecting the board can help identify
+which entry appeared. If `/dev/serial/by-id/` does not exist, compare the
+results of `ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null` before and after
+connecting the board. Set the variable in the same terminal where you will run
+the flash or monitor command, using the device you found:
+
+```bash
+export SERIAL_PORT=/dev/ttyACM0
+ls -l "$SERIAL_PORT"
+```
+
+The path above is an example; replace it with your board's actual device.
+Confirm that the selected port reports an ESP32-C3 before flashing:
+
+```bash
+docker run --rm --device="$SERIAL_PORT" \
+    -v "$PWD:/project" -w /project luxflux-idf:v5.5.4 \
+    esptool.py --chip auto -p "$SERIAL_PORT" chip_id
+```
+
+Exit the serial monitor with `Ctrl+]`. Rebuild and flash after changing
+menuconfig settings. The flash and monitor commands above use Linux device
+paths; see [Build, compile and test](docs/BUILD_COMPILE_TEST.md) for device
+identification and other operating systems.
+
+| Menuconfig menu | Settings you can change |
+| --- | --- |
+| **LuxFlux board configuration** | LED DATA GPIO; I2C SDA/SCL, IMU interrupt, microphone, battery ADC, and status LED GPIOs. `-1` leaves a pin unassigned or disables LED output. The project defaults set LED DATA to GPIO4. |
+| **LuxFlux LED driver** | LED protocol (WS2812B, SK6812 RGB, WS2811 800/400 kHz, UCS1903, SM16703, or generic RMT); LED count (project default: 9); maximum channel brightness; boot diagnostic. The generic protocol also exposes bit and reset timing. |
+| **LuxFlux network driver** | Optional scan and log of the target Wi-Fi access point before connecting. |
+| **LuxFlux RGB synchronization** | Disabled, SoftAP server, or Station client role (project default: client); Wi-Fi SSID and password; requested sequence name; optional TCP server address override; limits for sequences, frames, groups, payload and memory; frame duration bounds; socket timeout and retry count. |
+
+Wi-Fi credentials and local menuconfig choices are stored in the ignored
+`sdkconfig`; the included `sdkconfig.defaults` provides the project defaults.
+See [Configuration](docs/CONFIGURATION.md) for details.
+
+## Optional flashing
+
+Connect hardware and identify its serial port explicitly. On Linux, a board
+may appear as `/dev/ttyACM0` or `/dev/ttyUSB0`; permissions must allow access.
+This installation of Docker Compose does not provide `run --device`; pass the
+device explicitly with `docker run`. For example, only if your board actually
+appears at `/dev/ttyACM0` and has been confirmed as an ESP32-C3:
+
+```bash
+docker run --rm -it --device=/dev/ttyACM0 \
+    -v "$PWD:/project" -w /project luxflux-idf:v5.5.4 \
+    idf.py -p /dev/ttyACM0 flash monitor
+```
+
+On macOS, USB serial paths such as `/dev/cu.*` are generally not forwarded
+through Docker Desktop; use native ESP-IDF or a remote Linux host for flashing.
+On Windows, COM ports are not directly mapped to Linux containers by Docker
+Desktop; use native Windows ESP-IDF or WSL2 USB forwarding configured for the
+specific device. This workspace's `/dev/ttyACM0` was confirmed as an ESP32-C3,
+flashed and observed booting; that path is an example for this host only.
+
+## Configuration and architecture
+
+`idf.py menuconfig` selects board pins, one LED backend, LED count, brightness
+limit, optional boot diagnostic and RGB synchronization role. The current
+test profile selects GPIO4, 9 LEDs, WS2812B at 800 kHz and Station client
+mode; other board pins remain unassigned. See
+`docs/CONFIGURATION.md` for values and setting ownership. Put Wi-Fi credentials
+only in the ignored local `sdkconfig` via menuconfig; never add them to headers
+or `sdkconfig.defaults`. The RGB server starts a SoftAP, binds TCP port 3333
+on `0.0.0.0`, and currently serves a two-frame demonstration sequence under
+the configured sequence name. The client joins the named Wi-Fi network,
+connects to the gateway address supplied by DHCP, and requests that sequence.
+An optional server-address override exists only for lab setups where a Python
+test server is not the gateway. Role selection is independent of LED protocol.
+
+The transport uses `SYNC`, `READY TO SYNC`, `ACK`, `NACK` and `EOF` lines.
+It accepts LF, CRLF and an optional legacy NUL terminator; each frame uses
+`count(R,G,B),...,duration_ms`. Per-frame ACKs are required; EOF completes
+the transfer. Invalid transfers leave the previous sequence intact. Typed events
+reach a separate effects task, which owns status animation and sequence
+playback through the generic LED API. Socket reads have a timeout and bounded
+retries; TCP disconnects never block LED refresh indefinitely. The effects
+task can run without an LED pin, but no physical output occurs until a pin is
+configured.
+
+Compile and run the portable protocol tests:
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror -Icomponents/sync_core/include \
+    tests/sync_core_test.cpp components/sync_core/legacy_parser.cpp \
+    components/sync_core/line_stream.cpp components/sync_core/sync_protocol.cpp \
+    -o /tmp/luxflux-sync-core-test
+/tmp/luxflux-sync-core-test
+```
+
+To emulate the legacy TCP server on a reachable host, select the client role,
+set the Wi-Fi credentials and LED count in menuconfig, and run one of:
+
+```bash
+python3 tools/luxflux_tcp_test_server.py --mode normal --led-count 9
+python3 tools/luxflux_tcp_test_server.py --mode fragmented --led-count 9
+python3 tools/luxflux_tcp_test_server.py --mode coalesced --led-count 9
+python3 tools/luxflux_tcp_test_server.py --mode malformed --led-count 9
+```
+
+The script uses only the Python standard library, listens on port 3333 by
+default and exits on timeout. Set `--host`, `--port` or `--log-file` as needed.
+If the test host is not the Wi-Fi gateway, set the client address override in
+menuconfig to its reachable IPv4 address. The configured LED count must match
+the test server argument. The test server is for a controlled local network;
+the protocol does not authenticate peers or encrypt the TCP stream.
+
+The original ESP8266 code in `Firmware/drivers/TCP_IP`, `middleware`,
+`interfaces`, `HAL` and `Test/ESP_TCP_Test` informed the handshake, named
+sequence request, frame format and status events. This implementation fixes
+the original one-`recv`-per-message assumption, fixed 128-byte buffers,
+hardcoded eight-pixel frames and IP addresses, storage writes before complete
+validation, restart after connection, untyped queue messages and indefinite
+socket waits. The legacy parser is isolated from the hardware LED component.
+
+## ESP32WOL reference and differences
+
+The read-only `/home/tonixscarlet/Documents/ESP32WOL` reference supplied the
+ESP-IDF 5.5 release choice, ESP32-C3 target, conventional top-level CMake
+shape, `/project` container workspace, bind-mounted source and optional USB
+device workflow. Reviewed `Docker/Dockerfile`, `Docker/ReadMe.md`,
+`Docker/InstallDocker.md`, `Docker/installdocker.sh`, `ReadMe.md`, root and main
+`CMakeLists.txt`, and the generated `build/config.env` version/target entries.
+The Wi-Fi Station initialization in the read-only `main/main.c` was also
+compared during hardware diagnosis; its explicit WPA2 threshold and disabled
+power saving informed the current driver settings.
+It has no Compose or Dev Container configuration. This project uses a pinned
+official image instead of cloning a moving release branch, Compose instead of
+manual `docker run`, a separate C++ component tree, configurable board pins
+and no WOL application logic or copied secrets.

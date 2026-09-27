@@ -1,0 +1,8 @@
+menu "LuxFlux network driver"
+    config LUXFLUX_WIFI_DIAGNOSTIC_SCAN
+        bool "Scan and log target AP before connecting"
+        default n
+        help
+            For Wi-Fi bring-up only. Logs target AP channel, RSSI and security
+            without printing the password. Adds a startup scan delay.
+endmenu

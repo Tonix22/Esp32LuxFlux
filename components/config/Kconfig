@@ -1,0 +1,34 @@
+menu "LuxFlux board configuration"
+    config LUXFLUX_LED_GPIO
+        int "Addressable LED data GPIO (-1 disables output)"
+        range -1 21
+        default -1
+        help
+            Select a suitable free output pin for your ESP32-C3 board.
+            The default disables LED output until board wiring is confirmed.
+
+    config LUXFLUX_I2C_SDA_GPIO
+        int "I2C SDA GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+    config LUXFLUX_I2C_SCL_GPIO
+        int "I2C SCL GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+    config LUXFLUX_IMU_INT_GPIO
+        int "IMU interrupt GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+    config LUXFLUX_MIC_GPIO
+        int "Microphone GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+    config LUXFLUX_BATTERY_ADC_GPIO
+        int "Battery ADC GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+    config LUXFLUX_STATUS_LED_GPIO
+        int "Status LED GPIO (-1 unassigned)"
+        range -1 21
+        default -1
+endmenu

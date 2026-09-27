@@ -1,0 +1,7 @@
+# Non-secret defaults used when ESP-IDF generates the local sdkconfig.
+# Change board-specific values in menuconfig; keep Wi-Fi credentials out of this file.
+CONFIG_IDF_TARGET="esp32c3"
+CONFIG_LUXFLUX_LED_GPIO=4
+CONFIG_LUXFLUX_LED_WS2812B=y
+CONFIG_LUXFLUX_LED_COUNT=9
+CONFIG_LUXFLUX_SYNC_CLIENT=y

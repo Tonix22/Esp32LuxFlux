@@ -1,0 +1,15 @@
+build/
+build-*/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+managed_components/
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+test-results/*
+tools/wifi_minimal/*

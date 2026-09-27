@@ -1,0 +1,9 @@
+{
+  "C_Cpp.default.includePath": [
+    "${workspaceFolder}/build/config",
+    "${workspaceFolder}/components/**"
+  ],
+  "C_Cpp.default.forcedInclude": [
+    "${workspaceFolder}/build/config/sdkconfig.h"
+  ]
+}

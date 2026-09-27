@@ -1,0 +1,61 @@
+menu "LuxFlux LED driver"
+    choice LUXFLUX_LED_PROTOCOL
+        prompt "Addressable LED protocol"
+        default LUXFLUX_LED_WS2812B
+        config LUXFLUX_LED_WS2812B
+            bool "WS2812B (800 kHz)"
+        config LUXFLUX_LED_SK6812
+            bool "SK6812 RGB (800 kHz)"
+        config LUXFLUX_LED_WS2811_800
+            bool "WS2811 (800 kHz)"
+        config LUXFLUX_LED_WS2811_400
+            bool "WS2811 (400 kHz)"
+        config LUXFLUX_LED_UCS1903
+            bool "UCS1903 (400 kHz nominal)"
+        config LUXFLUX_LED_SM16703
+            bool "SM16703 (800 kHz nominal)"
+        config LUXFLUX_LED_GENERIC
+            bool "Generic configurable RMT protocol"
+    endchoice
+
+    config LUXFLUX_LED_COUNT
+        int "LED count"
+        range 1 256
+        default 16
+        help
+            Every received RGB frame must describe exactly this many LEDs.
+            Match the Python test server's --led-count argument to this value.
+    config LUXFLUX_LED_BRIGHTNESS_LIMIT
+        int "Maximum channel brightness (0-255 scale)"
+        range 1 255
+        default 64
+    config LUXFLUX_LED_DIAGNOSTIC_ON_BOOT
+        bool "Run LED diagnostic sequence on boot"
+        default n
+        help
+            Red, green, blue, then a moving white pixel and off. Requires a
+            configured LED GPIO. Verify current and power limits first.
+
+    if LUXFLUX_LED_GENERIC
+        config LUXFLUX_LED_GENERIC_T0H_NS
+            int "Zero high time (ns)"
+            range 100 5000
+            default 350
+        config LUXFLUX_LED_GENERIC_T0L_NS
+            int "Zero low time (ns)"
+            range 100 5000
+            default 900
+        config LUXFLUX_LED_GENERIC_T1H_NS
+            int "One high time (ns)"
+            range 100 5000
+            default 700
+        config LUXFLUX_LED_GENERIC_T1L_NS
+            int "One low time (ns)"
+            range 100 5000
+            default 600
+        config LUXFLUX_LED_GENERIC_RESET_US
+            int "Reset/latch low time (us)"
+            range 50 300
+            default 80
+    endif
+endmenu

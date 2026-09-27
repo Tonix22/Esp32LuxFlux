@@ -1,0 +1,69 @@
+menu "LuxFlux RGB synchronization"
+    choice LUXFLUX_SYNC_ROLE
+        prompt "Synchronization role"
+        default LUXFLUX_SYNC_DISABLED
+        config LUXFLUX_SYNC_DISABLED
+            bool "Disabled"
+        config LUXFLUX_SYNC_SERVER
+            bool "SoftAP server"
+        config LUXFLUX_SYNC_CLIENT
+            bool "Station client"
+    endchoice
+    config LUXFLUX_SYNC_WIFI_SSID
+        string "Synchronization Wi-Fi SSID"
+        default ""
+        help
+            Stored only in ignored sdkconfig. Do not commit credentials.
+    config LUXFLUX_SYNC_WIFI_PASSWORD
+        string "Synchronization Wi-Fi password"
+        default ""
+    config LUXFLUX_SYNC_SEQUENCE_NAME
+        string "Sequence name to request"
+        default "default"
+    config LUXFLUX_SYNC_SERVER_HOST_OVERRIDE
+        string "Optional TCP server address override for lab testing"
+        default ""
+        help
+            Empty uses the Station interface's SoftAP gateway address.
+    config LUXFLUX_SYNC_MAX_SEQUENCES
+        int "Maximum stored sequences"
+        range 1 8
+        default 4
+    config LUXFLUX_SYNC_MAX_FRAMES
+        int "Maximum frames per sequence"
+        range 1 256
+        default 128
+    config LUXFLUX_SYNC_MAX_GROUPS
+        int "Maximum groups per frame"
+        range 1 256
+        default 256
+        help
+            A group is one count(R,G,B) entry. This limit counts entries,
+            not physical LEDs; their counts must total LUXFLUX_LED_COUNT.
+    config LUXFLUX_SYNC_MAX_PAYLOAD
+        int "Maximum RGB text record bytes"
+        range 64 4096
+        default 1024
+    config LUXFLUX_SYNC_MAX_MEMORY
+        int "Maximum stored plus in-flight sequence bytes"
+        range 1024 32768
+        default 16384
+        help
+            Caps memory used by stored sequences and a sequence being received.
+    config LUXFLUX_SYNC_MIN_DURATION_MS
+        int "Minimum frame duration (ms)"
+        range 1 1000
+        default 1
+    config LUXFLUX_SYNC_MAX_DURATION_MS
+        int "Maximum frame duration (ms)"
+        range 1 60000
+        default 10000
+    config LUXFLUX_SYNC_SOCKET_TIMEOUT_MS
+        int "Socket read/write timeout (ms)"
+        range 100 10000
+        default 1000
+    config LUXFLUX_SYNC_TIMEOUT_RETRIES
+        int "Timeout retries per message"
+        range 0 5
+        default 2
+endmenu
