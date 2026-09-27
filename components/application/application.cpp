@@ -13,7 +13,7 @@ namespace luxflux
     static constexpr const char *TAG = "application";
 
     // The constructor initializer list passes the config component's limits to SyncService.
-    Application::Application() : effects_(leds_), sync_(wifi_, effects_, config::makeLimits()) {}
+    Application::Application() : effects_(leds_), sync_(wifi_, discovery_, effects_, config::makeLimits()) {}
 
     esp_err_t Application::initialize()
     {

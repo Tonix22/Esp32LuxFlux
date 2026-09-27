@@ -1,0 +1,14 @@
+menu "LuxFlux mDNS discovery"
+    config LUXFLUX_MDNS_QUERY_TIMEOUT_MS
+        int "Discovery query timeout (ms)"
+        range 200 5000
+        default 1200
+    config LUXFLUX_MDNS_RETRY_INTERVAL_MS
+        int "Delay between discovery attempts (ms)"
+        range 100 5000
+        default 400
+    config LUXFLUX_MDNS_VERIFY_INTERVAL_MS
+        int "Assigned-name verification interval (ms)"
+        range 5000 300000
+        default 30000
+endmenu

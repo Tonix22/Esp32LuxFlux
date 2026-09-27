@@ -77,14 +77,17 @@ void WifiDriver::eventHandler(void *argument, esp_event_base_t base, std::int32_
         if (!self.manual_connect_.load()) esp_wifi_connect();
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         self.connected_.store(false);
+        self.connection_generation_.fetch_add(1);
         const auto *event = static_cast<const wifi_event_sta_disconnected_t *>(event_data);
         const std::uint8_t reason = event ? event->reason : 0;
         ESP_LOGW(TAG, "Station disconnected: %s (reason=%u); reconnecting",
                  disconnectReasonName(reason), static_cast<unsigned>(reason));
         if (self.running_) esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
-        self.connected_.store(true);
         const auto *event = static_cast<const ip_event_got_ip_t *>(event_data);
+        if (!self.connected_.load() || (event && event->ip_changed))
+            self.connection_generation_.fetch_add(1);
+        self.connected_.store(true);
         if (event) ESP_LOGI(TAG, "Station connected; IP=" IPSTR,
                             IP2STR(&event->ip_info.ip));
     }

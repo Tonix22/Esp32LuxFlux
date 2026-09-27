@@ -49,8 +49,8 @@ private:
     int fd_;
 };
 
-SyncService::SyncService(WifiDriver &wifi, EffectsEngine &effects, SyncLimits limits)
-    : wifi_(wifi), effects_(effects), limits_(limits), store_(limits) {}
+SyncService::SyncService(WifiDriver &wifi, MdnsDiscovery &discovery, EffectsEngine &effects, SyncLimits limits)
+    : wifi_(wifi), discovery_(discovery), effects_(effects), limits_(limits), store_(limits) {}
 SyncService::~SyncService() { if (task_) vTaskDelete(task_); }
 
 esp_err_t SyncService::restoreSavedSequence()
@@ -73,6 +73,8 @@ esp_err_t SyncService::startServer(const WifiSoftApConfig &config)
     if (task_) return ESP_ERR_INVALID_STATE;
     esp_err_t result = wifi_.startSoftAP(config);
     if (result != ESP_OK) return result;
+    result = discovery_.start(wifi_, true);
+    if (result != ESP_OK) return result;
     server_ = true;
     if (xTaskCreate(taskEntry, "luxflux_sync", 8192, this, 3, &task_) != pdPASS)
         return ESP_ERR_NO_MEM;
@@ -86,6 +88,8 @@ esp_err_t SyncService::startClient(const WifiStationConfig &config,
     sequence_name_ = sequence_name;
     host_override_ = host_override ? host_override : "";
     esp_err_t result = wifi_.startStation(config);
+    if (result != ESP_OK) return result;
+    result = discovery_.start(wifi_, false);
     if (result != ESP_OK) return result;
     server_ = false;
     if (xTaskCreate(taskEntry, "luxflux_sync", 8192, this, 3, &task_) != pdPASS)
@@ -143,6 +147,11 @@ void SyncService::taskLoop()
         // ESP32 SoftAP-server role; independent of the Python server on a PC.
         SocketServer listener;
         for (;;) {
+            if (!discovery_.assigned()) {
+                listener.close();
+                vTaskDelay(pdMS_TO_TICKS(250));
+                continue;
+            }
             if (!listener.listening() && listener.listen(kPort) != ESP_OK) {
                 ESP_LOGE(TAG, "Cannot bind 0.0.0.0:%u; retrying", kPort);
                 vTaskDelay(pdMS_TO_TICKS(1000));
@@ -151,6 +160,10 @@ void SyncService::taskLoop()
             ESP_LOGI(TAG, "Listening on 0.0.0.0:%u", kPort);
             int client_fd = -1;
             if (listener.accept(client_fd, 1000) == ESP_OK) {
+                if (!discovery_.assigned()) { ::close(client_fd); continue; }
+                const auto identity = discovery_.identity();
+                ESP_LOGI(TAG, "TCP server identity: %s (%s)", identity.logical_name.c_str(),
+                         identity.device_id.c_str());
                 SocketStream stream(client_fd, CONFIG_LUXFLUX_SYNC_SOCKET_TIMEOUT_MS);
                 const SyncStatus status = protocol.serve(stream, store_);
                 ESP_LOGI(TAG, "Server transfer ended: %s", syncStatusName(status));
@@ -162,6 +175,10 @@ void SyncService::taskLoop()
     // ESP32 Station-client role: wait for Wi-Fi, connect, receive one sequence,
     // then retry later if the one-shot Python server has closed its socket.
     for (;;) {
+        if (!discovery_.assigned()) {
+            vTaskDelay(pdMS_TO_TICKS(250));
+            continue;
+        }
         if (wifi_.waitForStation(10000) != ESP_OK) {
             ESP_LOGW(TAG, "Waiting for Station IP");
             continue;
@@ -174,7 +191,9 @@ void SyncService::taskLoop()
         // Empty override uses the DHCP gateway; the lab setup uses the PC IP.
         const char *host = host_override_.empty() ? gateway : host_override_.c_str();
         SocketClient socket;
-        ESP_LOGI(TAG, "Connecting to RGB server %s:%u", host, kPort);
+        const auto identity = discovery_.identity();
+        ESP_LOGI(TAG, "Connecting to RGB server %s:%u as %s (%s)", host, kPort,
+                 identity.logical_name.c_str(), identity.device_id.c_str());
         if (socket.connect(host, kPort, CONFIG_LUXFLUX_SYNC_SOCKET_TIMEOUT_MS) == ESP_OK) {
             SocketStream stream(socket.release(), CONFIG_LUXFLUX_SYNC_SOCKET_TIMEOUT_MS);
             const SyncStatus status = protocol.receive(stream, sequence_name_, store_);

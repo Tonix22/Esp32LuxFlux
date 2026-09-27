@@ -101,10 +101,55 @@ identification and other operating systems.
 | **LuxFlux LED driver** | LED protocol (WS2812B, SK6812 RGB, WS2811 800/400 kHz, UCS1903, SM16703, or generic RMT); LED count (project default: 9); maximum channel brightness; boot diagnostic. The generic protocol also exposes bit and reset timing. |
 | **LuxFlux network driver** | Optional scan and log of the target Wi-Fi access point before connecting. |
 | **LuxFlux RGB synchronization** | Disabled, SoftAP server, or Station client role (project default: client); Wi-Fi SSID and password; requested sequence name; optional TCP server address override; limits for sequences, frames, groups, payload and memory; frame duration bounds; socket timeout and retry count. |
+| **LuxFlux mDNS discovery** | Discovery query timeout, delay between the three discovery attempts, and periodic verification interval. |
 
 Wi-Fi credentials and local menuconfig choices are stored in the ignored
 `sdkconfig`; the included `sdkconfig.defaults` provides the project defaults.
 See [Configuration](docs/CONFIGURATION.md) for details.
+
+## mDNS scientist identities
+
+Each ESP32 advertises `_luxflux._tcp.local.` with a service instance and
+hostname derived from its permanent factory MAC, such as
+`luxflux-7C9EBD123456`. Its TXT records contain `device_id`, `logical_name`,
+`state`, and TCP `role`. The logical name starts with the first available name
+in the ordered scientist registry and is confirmed only after three discovery
+attempts and collision verification. A device repeats enumeration after a Wi-Fi
+reconnection; an established device keeps its name when another device joins.
+The lower factory MAC wins when two devices have competing claims on the same
+name. If all 26 names are occupied, the device waits and retries without
+starting RGB TCP synchronization.
+
+The existing TCP direction is unchanged: Station clients connect to the
+configured host or DHCP gateway, while SoftAP servers accept TCP connections
+on port 3333. Client-role mDNS records use port 0 and cannot be probed as TCP
+servers. The RGB protocol itself does not carry the scientist name; clients
+can observe changes through updated mDNS TXT records and serial logs.
+
+On a computer on the same multicast-capable network, inspect devices with:
+
+```bash
+python3 -m pip install -r tests/requirements-mdns.txt
+python3 tests/tcp_test_server_test.py --discover
+```
+
+Add `--connect` to probe discovered **server-role** ESP32s using the existing
+RGB TCP protocol. The default test command still runs locally without
+`zeroconf` or hardware. For a host-only enumeration test, run:
+
+```bash
+g++ -std=c++17 -Wall -Wextra -Werror \
+    -Icomponents/mdns_discovery/include tests/mdns_enumeration_test.cpp \
+    components/mdns_discovery/enumeration.cpp -o /tmp/luxflux-mdns-enumeration-test
+/tmp/luxflux-mdns-enumeration-test
+python3 tests/mdns_observer_test.py
+```
+
+mDNS discovery depends on multicast visibility. Network isolation, lost
+responses, or a partition can temporarily produce duplicate names. Periodic
+verification resolves visible conflicts later, but mDNS cannot guarantee one
+globally consistent view across separated networks. A missed periodic query
+does not remove an existing assignment.
 
 ## Optional flashing
 

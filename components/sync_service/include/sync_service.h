@@ -3,6 +3,7 @@
 #include "sync_protocol.h"
 #include "wifi_driver.h"
 #include "nvm_store.h"
+#include "mdns_discovery.hpp"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -10,7 +11,7 @@
 namespace luxflux {
 class SyncService {
 public:
-    SyncService(WifiDriver &wifi, EffectsEngine &effects, SyncLimits limits);
+    SyncService(WifiDriver &wifi, MdnsDiscovery &discovery, EffectsEngine &effects, SyncLimits limits);
     ~SyncService();
     esp_err_t startServer(const WifiSoftApConfig &config);
     esp_err_t startClient(const WifiStationConfig &config,
@@ -22,6 +23,7 @@ private:
     void taskLoop();
     void logFrame(const LightFrame &frame);
     WifiDriver &wifi_;
+    MdnsDiscovery &discovery_;
     EffectsEngine &effects_;
     SyncLimits limits_;
     SequenceStore store_;

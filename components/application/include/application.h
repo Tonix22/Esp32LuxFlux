@@ -4,6 +4,7 @@
 #include "effects_engine.h"
 #include "sync_service.h"
 #include "wifi_driver.h"
+#include "mdns_discovery.hpp"
 
 namespace luxflux {
 class Application {
@@ -13,6 +14,7 @@ public:
     void run();
 private:
     WifiDriver wifi_;
+    MdnsDiscovery discovery_;
     LedDriver leds_;
     EffectsEngine effects_;
     SyncService sync_;

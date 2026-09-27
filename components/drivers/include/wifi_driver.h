@@ -29,6 +29,7 @@ public:
     esp_err_t gatewayAddress(char *buffer, std::size_t length) const;
     WifiMode mode() const { return mode_; }
     bool isConnected() const { return connected_.load(); }
+    std::uint32_t connectionGeneration() const { return connection_generation_.load(); }
 private:
     static void eventHandler(void *argument, esp_event_base_t base, std::int32_t id, void *data);
     esp_err_t start(WifiMode mode, const WifiStationConfig *station,
@@ -37,6 +38,7 @@ private:
     bool running_ = false;
     bool owns_event_loop_ = false;
     std::atomic<bool> connected_{false};
+    std::atomic<std::uint32_t> connection_generation_{0};
     std::atomic<bool> manual_connect_{false};
     WifiMode mode_ = WifiMode::Disabled;
     esp_netif_t *station_netif_ = nullptr;
