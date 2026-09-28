@@ -14,6 +14,7 @@ public:
     SyncService(WifiDriver &wifi, MdnsDiscovery &discovery, EffectsEngine &effects, SyncLimits limits);
     ~SyncService();
     esp_err_t startServer(const WifiSoftApConfig &config);
+    esp_err_t startUploadServer(const WifiStationConfig &config, const char *sequence_name);
     esp_err_t startClient(const WifiStationConfig &config,
                           const char *sequence_name, const char *host_override);
     SequenceStore &store() { return store_; }
@@ -30,6 +31,7 @@ private:
     nvm::NvmStore nvm_;
     TaskHandle_t task_ = nullptr;
     bool server_ = false;
+    bool upload_server_ = false;
     std::string sequence_name_;
     std::string host_override_;
 };

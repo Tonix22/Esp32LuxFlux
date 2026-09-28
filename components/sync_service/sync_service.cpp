@@ -97,6 +97,22 @@ esp_err_t SyncService::startClient(const WifiStationConfig &config,
     return ESP_OK;
 }
 
+esp_err_t SyncService::startUploadServer(const WifiStationConfig &config,
+                                        const char *sequence_name)
+{
+    if (task_ || !sequence_name || !*sequence_name) return ESP_ERR_INVALID_ARG;
+    sequence_name_ = sequence_name;
+    esp_err_t result = wifi_.startStation(config);
+    if (result != ESP_OK) return result;
+    result = discovery_.start(wifi_, false, true);
+    if (result != ESP_OK) return result;
+    server_ = true;
+    upload_server_ = true;
+    if (xTaskCreate(taskEntry, "luxflux_sync", 8192, this, 3, &task_) != pdPASS)
+        return ESP_ERR_NO_MEM;
+    return ESP_OK;
+}
+
 void SyncService::taskEntry(void *argument)
 { static_cast<SyncService *>(argument)->taskLoop(); }
 
@@ -144,7 +160,8 @@ void SyncService::taskLoop()
     };
     SyncProtocol protocol(limits_, callback, [this](const LightFrame &frame) { logFrame(frame); });
     if (server_) {
-        // ESP32 SoftAP-server role; independent of the Python server on a PC.
+        // Both server modes accept inbound TCP connections. The Station mode
+        // receives uploads; the legacy SoftAP mode serves stored sequences.
         SocketServer listener;
         for (;;) {
             if (!discovery_.assigned()) {
@@ -165,9 +182,11 @@ void SyncService::taskLoop()
                 ESP_LOGI(TAG, "TCP server identity: %s (%s)", identity.logical_name.c_str(),
                          identity.device_id.c_str());
                 SocketStream stream(client_fd, CONFIG_LUXFLUX_SYNC_SOCKET_TIMEOUT_MS);
-                const SyncStatus status = protocol.serve(stream, store_);
+                const SyncStatus status = upload_server_
+                    ? protocol.receive(stream, sequence_name_, store_)
+                    : protocol.serve(stream, store_);
                 ESP_LOGI(TAG, "Server transfer ended: %s", syncStatusName(status));
-                if (status != SyncStatus::Ok)
+                if (status != SyncStatus::Ok && !upload_server_)
                     effects_.notify({LightSyncEvent::TransferFailed, 0, 0});
             }
         }

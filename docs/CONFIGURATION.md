@@ -13,12 +13,13 @@ is needed, and no password belongs in a tracked header or JSON file.
 | LED count | 9 | `components/led_driver/Kconfig`, selected in `sdkconfig.defaults` or `idf.py menuconfig` |
 | LED DATA | GPIO4 | `components/config/Kconfig`, selected in `sdkconfig.defaults` or `idf.py menuconfig` |
 | I2C, SPI, IMU and microphone pins | Unassigned | Board Kconfig or future component configuration, once wiring is defined |
-| Sync role | Station client | `components/sync_service/Kconfig`, selected in `sdkconfig.defaults` or `idf.py menuconfig` |
+| Sync role | Station upload server (mDNS) | `components/sync_service/Kconfig`, selected in `sdkconfig.defaults` or `idf.py menuconfig` |
 | Target-SSID Wi-Fi diagnostic scan | Enabled in the ignored local test config; normally off | `components/drivers/Kconfig`, toggled with `idf.py menuconfig` |
 | Wi-Fi SSID | `Totalplay-81AC` | Ignored local `sdkconfig`, via `idf.py menuconfig` |
 | Wi-Fi password | Not shown or tracked | Ignored local `sdkconfig`, via `idf.py menuconfig` |
-| TCP test server | This PC's reachable LAN address | Ignored local `sdkconfig`: `LUXFLUX_SYNC_SERVER_HOST_OVERRIDE` |
-| TCP port | 3333 | Compatibility constant in `components/sync_service/sync_service.cpp`; server script `--port` must match |
+| TCP upload receiver | ESP32's DHCP address, discovered by Python through mDNS | Station upload server role; no computer IP required |
+| Legacy TCP test server | Computer's reachable LAN address, only in Station client mode | Ignored local `sdkconfig`: `LUXFLUX_SYNC_SERVER_HOST_OVERRIDE` |
+| TCP port | 3333 | Compatibility constant in `components/sync_service/sync_service.cpp`; advertised through mDNS |
 
 GPIO4 is a candidate general-purpose output on the ESP32-C3; it is not among
 the documented strapping pins (2, 8, 9), flash pins (12–17), or USB pins
@@ -27,12 +28,14 @@ and wire the strip DATA line to GPIO4 before claiming visible LED output. Do
 not assign GPIO4 to an IMU or audio peripheral later without moving LED DATA
 first. See the [Espressif GPIO reference](https://docs.espressif.com/projects/esp-idf/en/v5.4/esp32c3/api-reference/peripherals/gpio.html).
 
-For this PC-on-LAN test, the board must join the specified Wi-Fi network and
-connect to the PC's Ethernet IPv4 address. This is deliberately a *local*
-host override: the default product path leaves it empty and obtains the
-SoftAP server address from DHCP's gateway. Check the PC address with
-`ip -4 addr show` before changing networks. The current local override was
-`192.168.100.119` when the firmware was flashed; it is not portable.
+The board joins the specified Wi-Fi network, completes scientist enumeration,
+and listens for uploads from reachable computers. Python discovers its DHCP
+address and port through `_luxflux._tcp.local.`. A laptop can move between
+networks without changing a computer IP in the firmware; the board still needs
+the correct Wi-Fi credentials. Existing generated `sdkconfig` files keep their
+previous role until you explicitly select Station upload server and reflash.
+Legacy Station client mode remains available for the Python test server and
+uses the configured host override or DHCP gateway.
 
 To edit local values without committing a secret:
 
@@ -42,7 +45,7 @@ docker compose run --rm esp-idf idf.py build
 ```
 
 Open the LuxFlux LED driver, board configuration, and RGB synchronization
-menus. Select the client role and enter the Wi-Fi password in the latter. Do
+menus. Select Station upload server (mDNS) and enter the Wi-Fi password in the latter. Do
 not re-run `set-target` after this: it regenerates `sdkconfig` and may discard
 the local credentials. `sdkconfig` and `build/` are excluded by both Git and
 the Docker build context; the firmware binary still contains the configured

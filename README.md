@@ -100,7 +100,7 @@ identification and other operating systems.
 | **LuxFlux board configuration** | LED DATA GPIO; I2C SDA/SCL, IMU interrupt, microphone, battery ADC, and status LED GPIOs. `-1` leaves a pin unassigned or disables LED output. The project defaults set LED DATA to GPIO4. |
 | **LuxFlux LED driver** | LED protocol (WS2812B, SK6812 RGB, WS2811 800/400 kHz, UCS1903, SM16703, or generic RMT); LED count (project default: 9); maximum channel brightness; boot diagnostic. The generic protocol also exposes bit and reset timing. |
 | **LuxFlux network driver** | Optional scan and log of the target Wi-Fi access point before connecting. |
-| **LuxFlux RGB synchronization** | Disabled, SoftAP server, or Station client role (project default: client); Wi-Fi SSID and password; requested sequence name; optional TCP server address override; limits for sequences, frames, groups, payload and memory; frame duration bounds; socket timeout and retry count. |
+| **LuxFlux RGB synchronization** | Disabled, SoftAP server, Station client, or Station upload server role (project default: upload server); Wi-Fi SSID and password; requested sequence name; legacy client TCP server address override; limits for sequences, frames, groups, payload and memory; frame duration bounds; socket timeout and retry count. |
 | **LuxFlux mDNS discovery** | Discovery query timeout, delay between the three discovery attempts, and periodic verification interval. |
 
 Wi-Fi credentials and local menuconfig choices are stored in the ignored
@@ -120,11 +120,13 @@ The lower factory MAC wins when two devices have competing claims on the same
 name. If all 26 names are occupied, the device waits and retries without
 starting RGB TCP synchronization.
 
-The existing TCP direction is unchanged: Station clients connect to the
-configured host or DHCP gateway, while SoftAP servers accept TCP connections
-on port 3333. Client-role mDNS records use port 0 and cannot be probed as TCP
-servers. The RGB protocol itself does not carry the scientist name; clients
-can observe changes through updated mDNS TXT records and serial logs.
+Station upload servers join the existing Wi-Fi network and receive sequences
+on port 3333. Their mDNS records advertise `role=upload_server` and the TCP port;
+Python discovers the IP and connects directly, without a computer IP in the
+firmware. Legacy Station clients still connect to the configured host or DHCP
+gateway and advertise port 0. SoftAP servers advertise `role=server` and serve
+stored sequences. The RGB protocol itself does not carry the scientist name;
+clients observe identity changes through mDNS TXT records and serial logs.
 
 On a computer on the same multicast-capable network, inspect devices with:
 
@@ -176,11 +178,12 @@ flashed and observed booting; that path is an example for this host only.
 
 `idf.py menuconfig` selects board pins, one LED backend, LED count, brightness
 limit, optional boot diagnostic and RGB synchronization role. The current
-test profile selects GPIO4, 9 LEDs, WS2812B at 800 kHz and Station client
+test profile selects GPIO4, 9 LEDs, WS2812B at 800 kHz and Station upload server
 mode; other board pins remain unassigned. See
 `docs/CONFIGURATION.md` for values and setting ownership. Put Wi-Fi credentials
 only in the ignored local `sdkconfig` via menuconfig; never add them to headers
-or `sdkconfig.defaults`. The RGB server starts a SoftAP, binds TCP port 3333
+or `sdkconfig.defaults`. Station upload server mode joins your Wi-Fi and accepts
+sequence uploads on `0.0.0.0:3333` after mDNS enumeration. The legacy RGB server starts a SoftAP, binds TCP port 3333
 on `0.0.0.0`, and currently serves a two-frame demonstration sequence under
 the configured sequence name. The client joins the named Wi-Fi network,
 connects to the gateway address supplied by DHCP, and requests that sequence.
@@ -263,12 +266,16 @@ For a stable target, pass its full factory ID instead of its scientist name,
 for example `--device ACA704D01DC8`. If exactly one active device is discovered,
 `--device` can be omitted. Duplicate or ambiguous scientist names are rejected.
 
-The ESP32 must use **Station client** mode and have its server-address override
-set to this computer's reachable IPv4 address. mDNS identifies the target;
-the existing firmware still initiates the TCP connection to the computer.
-The script listens on port 3333, accepts the selected device's advertised IPv4
-address, and exits after sending one sequence. The current ESP32 server role
-does not accept sequence uploads. Stop other servers using port 3333 first.
+Select **LuxFlux RGB synchronization → Synchronization role → Station upload
+server (mDNS)** in `menuconfig`, set your Wi-Fi credentials, then build and flash
+once. Existing `sdkconfig` files retain their old role until you change it.
+No computer IP is required. Python connects to the advertised ESP32 IPv4
+address and TCP port, uploads once, and exits. Any computer on the reachable
+local network can upload; this local protocol has no authentication.
+
+The script also supports legacy **Station client** firmware by listening on
+port 3333; that mode still requires the computer IP in the firmware. SoftAP
+server mode serves stored sequences and cannot receive uploads.
 
 The JSON format is:
 

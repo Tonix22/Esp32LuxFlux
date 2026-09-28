@@ -46,7 +46,9 @@ def test_mode(mode):
 
 
 def probe_server(device, sequence):
-    """Only SoftAP/server-role ESP32s accept TCP; clients connect outward."""
+    """Probe stored-sequence servers; upload receivers need a JSON payload."""
+    if device.role == "upload_server":
+        return "Upload receiver: use tools/luxflux_json_server.py with a JSON sequence"
     if device.role != "server" or not device.port or not device.addresses:
         return "TCP probe skipped (device does not advertise a reachable server)"
     with socket.create_connection((device.addresses[0], device.port), timeout=5) as client:

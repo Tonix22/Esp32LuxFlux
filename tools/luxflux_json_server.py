@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover a LuxFlux client through mDNS and send a JSON RGB sequence."""
+"""Discover a LuxFlux device through mDNS and upload a JSON RGB sequence."""
 
 import argparse
 import ipaddress
@@ -70,9 +70,11 @@ def select_device(devices, selector=None):
         raise ValueError(f"Expected one active matching device, found {len(matches)}; "
                          "use --device with its factory ID or scientist name")
     device = matches[0]
-    if device.role != "client":
-        raise ValueError("Selected device is not a TCP client; the current server-role "
-                         "firmware serves sequences and cannot receive this upload")
+    if device.role not in {"client", "upload_server"}:
+        raise ValueError("Selected device cannot receive uploads; select Station upload "
+                         "server in firmware menuconfig (legacy SoftAP servers only serve sequences)")
+    if device.role == "upload_server" and not 1 <= device.port <= 65535:
+        raise ValueError("Upload server did not advertise a valid TCP port")
     return device
 
 
@@ -105,12 +107,39 @@ def serve_with_audio(connection, name, records, audio=None, delay_ms=250):
                         str(audio)], check=True)
 
 
+def connect_device(device, timeout, io_timeout, port=None):
+    """Resolve the connection from mDNS; allow the new listener time to bind."""
+    addresses = sorted(address for address in device.addresses
+                       if ipaddress.ip_address(address).version == 4)
+    if not addresses:
+        raise ValueError("Selected device has no advertised IPv4 address")
+    target_port = device.port if port is None else port
+    deadline = time.monotonic() + timeout
+    last_error = None
+    while time.monotonic() < deadline:
+        for address in addresses:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                connection = socket.create_connection((address, target_port),
+                                                      timeout=min(io_timeout, remaining))
+            except OSError as exc:
+                last_error = exc
+                continue
+            connection.settimeout(io_timeout)
+            logging.info("Connected to %s:%d (%s)", address, target_port, device.device_id)
+            return connection
+        time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+    raise TimeoutError(f"Could not connect to advertised ESP32 upload server: {last_error}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("json_file", type=pathlib.Path)
     parser.add_argument("--device", help="factory MAC ID (recommended) or scientist name; auto-selects a sole device")
-    parser.add_argument("--host", default="0.0.0.0", help="computer's listening address")
-    parser.add_argument("--port", type=int, default=3333)
+    parser.add_argument("--host", default="0.0.0.0", help="listening address for legacy client firmware only")
+    parser.add_argument("--port", type=int, help="override mDNS port; legacy listener defaults to 3333")
     parser.add_argument("--discovery-seconds", type=float, default=5.0)
     parser.add_argument("--timeout", type=float, default=60.0, help="wait for selected device (seconds)")
     parser.add_argument("--io-timeout", type=float, default=5.0)
@@ -122,7 +151,8 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
-        integer(args.port, 1, 65535, "port")
+        if args.port is not None:
+            integer(args.port, 1, 65535, "port")
         integer(args.max_frames, 1, 256, "max-frames")
         integer(args.max_payload, 64, 4096, "max-payload")
         integer(args.max_duration_ms, 1, 60000, "max-duration-ms")
@@ -142,13 +172,20 @@ def main():
             raise ValueError("Selected device has no advertised IPv4 address")
         logging.info("Selected %s (%s) at %s", device.device_id, device.logical_name,
                      ", ".join(sorted(addresses)))
+        if device.role == "upload_server":
+            with connect_device(device, args.timeout, args.io_timeout, args.port) as connection:
+                serve_with_audio(connection, name, records, args.audio, args.audio_delay_ms)
+            return 0
+        logging.warning("Legacy Station client firmware: ESP32 must know this computer's IP. "
+                        "Select Station upload server in menuconfig to use inbound mDNS uploads.")
+        port = args.port if args.port is not None else 3333
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listener.bind((args.host, args.port))
+            listener.bind((args.host, port))
             listener.listen(4)
             deadline = time.monotonic() + args.timeout
             logging.info("Listening on %s:%d; ESP32 server-host setting must point to this computer",
-                         args.host, args.port)
+                         args.host, port)
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:

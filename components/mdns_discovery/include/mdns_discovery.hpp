@@ -24,7 +24,7 @@ public:
     ~MdnsDiscovery();
     MdnsDiscovery(const MdnsDiscovery &) = delete;
     MdnsDiscovery &operator=(const MdnsDiscovery &) = delete;
-    esp_err_t start(WifiDriver &wifi, bool softap_server);
+    esp_err_t start(WifiDriver &wifi, bool softap_server, bool upload_server = false);
     DiscoveryIdentity identity() const;
     bool assigned() const;
 private:
@@ -40,6 +40,10 @@ private:
     mutable SemaphoreHandle_t mutex_ = nullptr;
     DiscoveryIdentity identity_;
     bool softap_server_ = false;
+    bool upload_server_ = false;
+    const char *tcpRole() const {
+        return upload_server_ ? "upload_server" : (softap_server_ ? "server" : "client");
+    }
     bool mdns_ready_ = false;
     std::uint32_t assigned_generation_ = 0;
 };

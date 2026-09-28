@@ -39,7 +39,7 @@ namespace luxflux
         result = sync_.restoreSavedSequence();
         if (result != ESP_OK && result != ESP_ERR_NOT_FOUND)
             ESP_LOGW(TAG, "Saved sequence unavailable: %s", esp_err_to_name(result));
-    #if CONFIG_LUXFLUX_SYNC_SERVER || CONFIG_LUXFLUX_SYNC_CLIENT
+    #if CONFIG_LUXFLUX_SYNC_SERVER || CONFIG_LUXFLUX_SYNC_CLIENT || CONFIG_LUXFLUX_SYNC_UPLOAD_SERVER
         if (!CONFIG_LUXFLUX_SYNC_WIFI_SSID[0]) 
         {
             ESP_LOGE(TAG, "Synchronization Wi-Fi SSID is empty");
@@ -57,8 +57,12 @@ namespace luxflux
             return ESP_ERR_INVALID_ARG;
         result = sync_.startServer({CONFIG_LUXFLUX_SYNC_WIFI_SSID,
                                     CONFIG_LUXFLUX_SYNC_WIFI_PASSWORD, 1, 4});
+    #elif CONFIG_LUXFLUX_SYNC_UPLOAD_SERVER
+        result = sync_.startUploadServer({CONFIG_LUXFLUX_SYNC_WIFI_SSID,
+                                         CONFIG_LUXFLUX_SYNC_WIFI_PASSWORD},
+                                        CONFIG_LUXFLUX_SYNC_SEQUENCE_NAME);
     #else
-        // In the current test build, this ESP32 is the client of the Python server.
+        // Legacy mode: this ESP32 connects to the Python server.
         result = sync_.startClient({CONFIG_LUXFLUX_SYNC_WIFI_SSID,
                                     CONFIG_LUXFLUX_SYNC_WIFI_PASSWORD},
                                 CONFIG_LUXFLUX_SYNC_SEQUENCE_NAME,

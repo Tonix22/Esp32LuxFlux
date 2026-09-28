@@ -21,7 +21,15 @@ the Python dependencies:
 python3 -m pip install -r tests/requirements-mdns.txt -r tests/requirements-music.txt
 ```
 
-Configure the ESP32's server host to the computer's LAN IP, then run:
+Select **LuxFlux RGB synchronization → Synchronization role → Station upload
+server (mDNS)** in firmware `menuconfig`, configure Wi-Fi, then build and flash
+once. Existing firmware using Station client mode must be updated to this role
+to remove the fixed computer IP. Python discovers the ESP32's address and
+advertised port through mDNS and connects as a TCP client. Both computers and
+ESP32 must be on a reachable network that permits multicast discovery.
+
+On macOS, install the audio tools with `brew install ffmpeg`. Run the same
+Python command on Linux or macOS:
 
 ```bash
 python3 tools/luxflux_json_server.py tools/sequences/disco_medusae_beats.json \
@@ -33,6 +41,12 @@ The script uploads all frames, sends `EOF`, waits the selected delay, and
 launches `ffplay` once. It never plays audio after a rejected transfer. The
 prepared WAV must be used for this JSON: playing the full original song would
 start at a different point in the music.
+
+Legacy Station client firmware remains supported, but requires its server
+host to point to the computer running Python. A log saying `Listening on
+0.0.0.0:3333` means that legacy role was discovered; the new mode instead logs
+`Connected to <ESP32 address>:3333`. Keep the backslash as the last character
+on each continued shell line (no trailing spaces).
 
 ## Analyze another song
 

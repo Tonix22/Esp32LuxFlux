@@ -32,7 +32,7 @@ MdnsDiscovery::~MdnsDiscovery()
     if (mutex_) vSemaphoreDelete(mutex_);
 }
 
-esp_err_t MdnsDiscovery::start(WifiDriver &wifi, bool softap_server)
+esp_err_t MdnsDiscovery::start(WifiDriver &wifi, bool softap_server, bool upload_server)
 {
     if (!mutex_) return ESP_ERR_NO_MEM;
     if (task_) return ESP_ERR_INVALID_STATE;
@@ -49,6 +49,7 @@ esp_err_t MdnsDiscovery::start(WifiDriver &wifi, bool softap_server)
     xSemaphoreGive(mutex_);
     wifi_ = &wifi;
     softap_server_ = softap_server;
+    upload_server_ = upload_server;
     ESP_LOGI(TAG, "Factory device ID: %s", id);
     if (xTaskCreate(taskEntry, "luxflux_mdns", 6144, this, 3, &task_) != pdPASS)
         return ESP_ERR_NO_MEM;
@@ -94,7 +95,7 @@ bool MdnsDiscovery::publish(const char *name, const char *state)
         {"device_id", current.device_id.c_str()},
         {"logical_name", name},
         {"state", state},
-        {"role", softap_server_ ? "server" : "client"}
+        {"role", tcpRole()}
     };
     const esp_err_t result = mdns_service_txt_set(kService, kProtocol, txt, 4);
     if (result != ESP_OK) ESP_LOGE(TAG, "Cannot publish identity: %s", esp_err_to_name(result));
@@ -183,10 +184,10 @@ void MdnsDiscovery::taskLoop()
             if (result == ESP_OK) {
                 mdns_txt_item_t txt[] = {
                     {"device_id", id.c_str()}, {"logical_name", ""},
-                    {"state", "discovering"}, {"role", softap_server_ ? "server" : "client"}
+                    {"state", "discovering"}, {"role", tcpRole()}
                 };
                 result = mdns_service_add(instance.c_str(), kService, kProtocol,
-                                          softap_server_ ? 3333 : 0, txt, 4);
+                                          (softap_server_ || upload_server_) ? 3333 : 0, txt, 4);
             }
             if (result != ESP_OK) {
                 ESP_LOGE(TAG, "mDNS service registration failed: %s", esp_err_to_name(result));

@@ -1,13 +1,19 @@
 menu "LuxFlux RGB synchronization"
     choice LUXFLUX_SYNC_ROLE
         prompt "Synchronization role"
-        default LUXFLUX_SYNC_DISABLED
+        default LUXFLUX_SYNC_UPLOAD_SERVER
         config LUXFLUX_SYNC_DISABLED
             bool "Disabled"
         config LUXFLUX_SYNC_SERVER
             bool "SoftAP server"
         config LUXFLUX_SYNC_CLIENT
             bool "Station client"
+        config LUXFLUX_SYNC_UPLOAD_SERVER
+            bool "Station upload server (mDNS)"
+            help
+                Join the configured Wi-Fi network and receive sequences on
+                TCP port 3333. Python discovers the address through mDNS;
+                no computer IP address is required in the firmware.
     endchoice
     config LUXFLUX_SYNC_WIFI_SSID
         string "Synchronization Wi-Fi SSID"
@@ -22,6 +28,7 @@ menu "LuxFlux RGB synchronization"
         default "default"
     config LUXFLUX_SYNC_SERVER_HOST_OVERRIDE
         string "Optional TCP server address override for lab testing"
+        depends on LUXFLUX_SYNC_CLIENT
         default ""
         help
             Empty uses the Station interface's SoftAP gateway address.

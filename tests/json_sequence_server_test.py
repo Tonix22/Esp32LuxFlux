@@ -6,7 +6,7 @@ import sys
 import threading
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "tools"))
-from luxflux_json_server import encode_sequence, select_device, serve_json
+from luxflux_json_server import connect_device, encode_sequence, select_device, serve_json
 from luxflux_mdns import Device
 from luxflux_tcp_test_server import Lines
 
@@ -84,4 +84,46 @@ def transfer(request="default", reject=False):
 transfer()
 transfer("different")
 transfer(reject=True)
+
+# The ESP32 is now the listener, but still uses the receiver handshake. Test
+# an actual outbound Python connection using the address and port from mDNS.
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    listener.settimeout(2)
+    device = Device("001122334401", "archimedes", "active", "upload_server",
+                    ("127.0.0.1",), listener.getsockname()[1], "A")
+    assert select_device({device.device_id: device}) == device
+    errors = []
+
+    def receive_upload():
+        try:
+            connection, _ = listener.accept()
+            with connection:
+                connection.settimeout(2)
+                lines = Lines(connection)
+                connection.sendall(b"SYNC\n")
+                assert lines.read() == "READY TO SYNC"
+                connection.sendall(b"ACK\nSEQ default\n")
+                for record in records:
+                    assert lines.read() == record.decode().strip()
+                    connection.sendall(b"ACK\n")
+                assert lines.read() == "EOF"
+        except Exception as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=receive_upload)
+    worker.start()
+    with connect_device(device, 2, 2) as connection:
+        serve_json(connection, name, records)
+    worker.join(2)
+    assert not worker.is_alive() and not errors, errors
+
+for role, port in (("server", 3333), ("upload_server", 0)):
+    invalid = Device(a.device_id, a.logical_name, "active", role, a.addresses, port, "A")
+    try:
+        select_device({invalid.device_id: invalid})
+        raise AssertionError("Unsupported upload target accepted")
+    except ValueError:
+        pass
 print("JSON sequence server tests passed")
