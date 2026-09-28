@@ -197,6 +197,114 @@ retries; TCP disconnects never block LED refresh indefinitely. The effects
 task can run without an LED pin, but no physical output occurs until a pin is
 configured.
 
+### Sequence and effect limits
+
+A transmitted effect is one named RGB sequence containing one or more frames.
+One TCP transfer carries **one sequence**, ending with `EOF`. With the default
+configuration, you can send **up to 128 frames per sequence**, provided the
+frame text and memory limits below are also satisfied. Send each frame as
+`count(R,G,B),...,duration_ms` and wait for its `ACK` before sending the next
+frame; after the final frame, send `EOF`.
+
+| Limit | Default | Allowed configuration range |
+| --- | --- | --- |
+| Frames per sequence | 128 | 1–256 |
+| Duration of one frame | 1–10,000 ms | Minimum: 1–1,000 ms; maximum: 1–60,000 ms |
+| Text length of one frame | 1,024 bytes | 64–4,096 bytes |
+| RGB groups (`count(R,G,B)` entries) per frame | 256 | 1–256; also bounded by LED count and text length |
+| Stored named sequences in RAM | 4 | 1–8 |
+| Estimated memory for stored sequences plus the incoming sequence | 16,384 bytes (16 KiB) | 1,024–32,768 bytes |
+| LEDs described by each frame | Exactly 9 in the project defaults | Match the configured LED count (1–256) |
+
+Change these limits under **LuxFlux RGB synchronization** in `menuconfig`;
+change LED count under **LuxFlux LED driver**. Rebuild and flash to apply the
+new limits. These values match the current test configuration and Kconfig
+defaults; local menuconfig changes can override them.
+
+At the default limits, 128 frames lasting 10,000 ms each give a maximum
+**single-cycle duration of 21 minutes 20 seconds**, if the sequence fits the
+memory budget. Playback repeats the sequence, so this is not a limit on how
+long the effect can keep running. For comparison, 128 frames at 40 ms each
+give a 5.12-second cycle.
+
+Every group must describe at least one LED, and the group counts must total
+the configured LED count. With 9 LEDs, a frame therefore has at most **9
+groups**, even though the configured group limit is 256. A solid-color frame
+such as `9(255,0,0),1000` uses only one group.
+
+The text limit applies to each frame line, not the entire sequence. With LF
+line endings, the final newline does not count toward that limit; with CRLF,
+the carriage return consumes one byte in the receive buffer. The memory
+limit accounts for frame structures and RGB groups, rather than the TCP text
+size or all heap overhead. An existing sequence remains stored while its
+replacement is received, so **both versions count toward the memory budget**.
+Consequently, the maximum number of frames that fit depends on group counts
+and what is already stored.
+
+The firmware accepts the new sequence only after complete validation at
+`EOF`. A transfer that exceeds a limit is rejected and leaves the previous
+sequence intact. NVS persistence has its own available storage capacity; a
+sequence accepted in RAM can still fail to save if NVS is full. The supplied
+Python test server sends only two frames by default; it is not a general
+sequence-upload tool.
+
+### Send a sequence from JSON using mDNS
+
+Use [luxflux_json_server.py](tools/luxflux_json_server.py) to select an active
+ESP32 by its mDNS identity and send the frames in a JSON file. Install the host
+dependency, then try the provided 9-LED example:
+
+```bash
+python3 -m pip install -r tests/requirements-mdns.txt
+python3 tools/luxflux_json_server.py tools/sequences/example.json --device archimedes
+```
+
+For a stable target, pass its full factory ID instead of its scientist name,
+for example `--device ACA704D01DC8`. If exactly one active device is discovered,
+`--device` can be omitted. Duplicate or ambiguous scientist names are rejected.
+
+The ESP32 must use **Station client** mode and have its server-address override
+set to this computer's reachable IPv4 address. mDNS identifies the target;
+the existing firmware still initiates the TCP connection to the computer.
+The script listens on port 3333, accepts the selected device's advertised IPv4
+address, and exits after sending one sequence. The current ESP32 server role
+does not accept sequence uploads. Stop other servers using port 3333 first.
+
+The JSON format is:
+
+```json
+{
+  "name": "default",
+  "led_count": 9,
+  "frames": [
+    {"duration_ms": 1000, "groups": [{"count": 9, "rgb": [255, 0, 0]}]},
+    {"duration_ms": 1000, "groups": [{"count": 9, "rgb": [0, 0, 255]}]}
+  ]
+}
+```
+
+`name` must match the firmware's **Sequence name to request** setting.
+`led_count` must match the board, and the `count` values in every frame must
+total that number. RGB channels must be integers from 0 to 255. The script
+validates the file before listening, sends one frame at a time, waits for each
+`ACK`, and sends `EOF` only after every frame was acknowledged. The protocol
+has no final commit acknowledgement; check serial logs for activation and NVS
+save results. Firmware memory and other configured limits can still reject a
+frame with `NACK`.
+
+Run `python3 tools/luxflux_json_server.py --help` for discovery/connection
+timeouts and frame, payload, and duration limit overrides. Only raise those
+limits to match a reconfigured board. Run the host tests with:
+
+```bash
+python3 tests/json_sequence_server_test.py
+```
+
+For a song-analysis prototype that generates frequency-color frames and beat
+pulses, then starts matching audio after `EOF`, see
+[Music-to-light demo](docs/MUSIC_LIGHT_DEMO.md). It includes a licensed music
+excerpt, its generated JSON, and instructions for analyzing other songs.
+
 Compile and run the portable protocol tests:
 
 ```bash

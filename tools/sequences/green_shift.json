@@ -1,0 +1,15 @@
+{
+  "name": "default",
+  "led_count": 9,
+  "frames": [
+    {"duration_ms": 100, "groups": [{"count": 1, "rgb": [0, 255, 0]}, {"count": 8, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 1, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 7, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 2, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 6, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 3, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 5, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 4, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 4, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 5, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 3, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 6, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 2, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 7, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}, {"count": 1, "rgb": [0, 0, 0]}]},
+    {"duration_ms": 100, "groups": [{"count": 8, "rgb": [0, 0, 0]}, {"count": 1, "rgb": [0, 255, 0]}]}
+  ]
+}

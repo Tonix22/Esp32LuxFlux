@@ -91,9 +91,14 @@ void EffectsEngine::taskLoop()
                 vTaskDelay(pdMS_TO_TICKS(100));
                 break;
             case LightSyncEvent::TransferFailed:
-                solid({255, 0, 0});
-                vTaskDelay(pdMS_TO_TICKS(200));
-                next_frame = xTaskGetTickCount();
+                // The one-shot host server normally exits after EOF. Later
+                // connection retries must not overwrite a valid animation or
+                // reset its frame timing with an error status color.
+                if (playing.frames.empty()) {
+                    solid({255, 0, 0});
+                    vTaskDelay(pdMS_TO_TICKS(200));
+                    next_frame = xTaskGetTickCount();
+                }
                 break;
             case LightSyncEvent::SequenceActivated:
                 // Replace the old playback sequence after the complete

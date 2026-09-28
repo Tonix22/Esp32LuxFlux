@@ -1,0 +1,9 @@
+{
+  "name": "default",
+  "led_count": 9,
+  "frames": [
+    {"duration_ms": 1000, "groups": [{"count": 9, "rgb": [255, 0, 0]}]},
+    {"duration_ms": 1000, "groups": [{"count": 9, "rgb": [0, 255, 0]}]},
+    {"duration_ms": 1000, "groups": [{"count": 9, "rgb": [0, 0, 255]}]}
+  ]
+}
